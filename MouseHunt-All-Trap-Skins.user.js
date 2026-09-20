@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MouseHunt - All Trap Skins
 // @namespace    https://www.mousehuntgame.com/
-// @version      1.1
+// @version      1.2
 // @description  Switch MouseHunt trap skins between Server Mode and Client Mode. Server Mode uses the skin actually armed in MouseHunt, while Client Mode lets you display any OWNED or UNOWNED skin locally without changing the server-side skin.
 // @author       mouseindustry
 // @license      MIT
@@ -34,12 +34,15 @@
     if (!storageCache.weapons) storageCache.weapons = {};
     return storageCache;
   };
+
   const saveData = (data) => {
     storageCache = data;
     localStorage.setItem(KEY, JSON.stringify(data));
   };
+
   const getWeaponId = () =>
     window.user?.weapon_item_id || window.hg?.user?.weapon_item_id || null;
+
   const getBrowser = () => {
     if (browserCache?.isConnected) return browserCache;
     browserCache = document.querySelector(
@@ -47,6 +50,7 @@
     );
     return browserCache;
   };
+
   const invalidateBrowser = () => {
     browserCache = null;
   };
@@ -92,6 +96,7 @@
 
   const getTrapImage = () =>
     document.querySelector(".trapImageView-layer.weapon");
+
   const getSummaryImage = () =>
     document.querySelector(
       '.trapSelectorView__armedItem[data-item-classification="skin"] .armedItemImage,.trapSelectorView__armedItem[data-item-classification="skin"] .trapSelectorView__armedItemImage',
@@ -138,18 +143,22 @@
       done?.();
       return;
     }
+
     const trap = getTrapImage(),
       summary = getSummaryImage();
     setBusy(true);
+
     const finish = () => {
       setBusy(false);
       done?.();
     };
+
     if (!trap) {
       setBackground(summary, thumbnail);
       finish();
       return;
     }
+
     $(trap)
       .stop(true, true)
       .fadeOut(250, function () {
@@ -164,10 +173,12 @@
 
   const getSkinImages = (id) => {
     if (!id) return null;
+
     const item = getBrowser()?.querySelector(
       `.campPage-trap-itemBrowser-item.skin[data-item-id="${id}"]`,
     );
     if (!item) return null;
+
     const thumbnail =
       item
         .querySelector(
@@ -176,23 +187,30 @@
         ?.style.backgroundImage.match(/url\(["']?(.*?)["']?\)/)?.[1] || null;
     const trapImage =
       item.querySelector(".itembrowser-skin-image")?.src || null;
+
     return thumbnail && trapImage ? { thumbnail, trapImage } : null;
   };
 
   const animateToServer = () => {
-    const data = getWeaponData(),
-      serverSkin = getServerSkin() || data.serverSkin;
+    const data = getWeaponData();
+    const serverSkin = getServerSkin() || data.serverSkin;
+
     if (serverSkin) saveServer(serverSkin);
+
     const images = getSkinImages(serverSkin);
+
     if (images) animateImages(images.trapImage, images.thumbnail);
     else setBusy(false);
   };
 
   const animateToClient = () => {
     const data = getWeaponData();
-    if (data.clientTrapImage && data.clientThumbnail)
+
+    if (data.clientTrapImage && data.clientThumbnail) {
       animateImages(data.clientTrapImage, data.clientThumbnail);
-    else animateToServer();
+    } else {
+      animateToServer();
+    }
   };
 
   const clearClientSkin = () => {
@@ -201,25 +219,32 @@
       clientTrapImage: null,
       clientThumbnail: null,
     });
+
     animateToServer();
     updateArmButtons();
   };
 
   const armServer = (id) => {
     if (!id || animationBusy) return;
+
     const item = getBrowser()?.querySelector(
       `.campPage-trap-itemBrowser-item.skin[data-item-id="${id}"]`,
     );
+
     if (!item || item.dataset.mhOriginalUnowned === "1") return;
+
     hg.utils.TrapControl.setSkin(id);
     saveServer(id);
+
     const images = getSkinImages(id);
+
     if (images) animateImages(images.trapImage, images.thumbnail);
     else updateArmButtons();
   };
 
   const armClient = (id, trapImage, thumbnail) => {
     if (!id || !trapImage || !thumbnail || animationBusy) return;
+
     saveClient(id, trapImage, thumbnail);
     animateImages(trapImage, thumbnail);
     updateArmButtons();
@@ -228,11 +253,14 @@
   const updateArmButtons = () => {
     const browser = getBrowser();
     if (!browser) return;
-    const data = getWeaponData(),
-      clientSkin = String(data.clientSkin);
+
+    const data = getWeaponData();
+    const clientSkin = String(data.clientSkin);
+
     browser.querySelectorAll(".mh-client-arm").forEach((button) => {
       const armed =
         mode === "client" && clientSkin === String(button.dataset.itemId);
+
       button.textContent = armed ? "Armed" : "Arm";
       button.classList.toggle("mh-client-arm-armed", armed);
       button.classList.toggle("mh-client-arm-busy", animationBusy);
@@ -241,37 +269,52 @@
 
   const addArmButton = (item) => {
     if (item.querySelector(".mh-client-arm")) return;
-    const name = item.querySelector(".campPage-trap-itemBrowser-item-name"),
-      id = item.dataset.itemId;
+
+    const name = item.querySelector(".campPage-trap-itemBrowser-item-name");
+    const id = item.dataset.itemId;
+
     if (!name || !id) return;
+
     const button = document.createElement("a");
+
     button.href = "#";
     button.className = "campPage-trap-itemBrowser-item-armButton mh-client-arm";
     button.dataset.itemId = id;
     button.dataset.itemClassification = "skin";
     button.textContent = "Arm";
+
     name.appendChild(button);
   };
 
   const setupArmHandler = (browser) => {
     if (browser.dataset.mhArmHandler === "1") return;
+
     browser.dataset.mhArmHandler = "1";
+
     browser.addEventListener("click", (e) => {
       const button = e.target.closest(".mh-client-arm");
+
       if (!button || !browser.contains(button)) return;
+
       e.preventDefault();
       e.stopPropagation();
+
       if (animationBusy) return;
+
       const id = button.dataset.itemId;
       const item = button.closest(".campPage-trap-itemBrowser-item.skin");
+
       if (mode === "server") {
         if (item?.dataset.mhOriginalUnowned === "1") return;
         armServer(id);
       } else {
         const data = getWeaponData();
-        if (String(data.clientSkin) === String(id)) clearClientSkin();
-        else {
+
+        if (String(data.clientSkin) === String(id)) {
+          clearClientSkin();
+        } else {
           const images = getSkinImages(id);
+
           if (images) armClient(id, images.trapImage, images.thumbnail);
         }
       }
@@ -281,15 +324,19 @@
   const updateItems = () => {
     const browser = getBrowser();
     if (!browser) return;
+
     browser
       .querySelectorAll(".campPage-trap-itemBrowser-item.skin[data-item-id]")
       .forEach((item) => {
         if (
           item.classList.contains("mh-unowned-skin-item") &&
           !item.dataset.mhOriginalUnowned
-        )
+        ) {
           item.dataset.mhOriginalUnowned = "1";
+        }
+
         const unowned = item.dataset.mhOriginalUnowned === "1";
+
         if (mode === "client" && unowned) {
           item.classList.remove("mh-unowned-skin-item", "cannotArm");
           item.classList.add("canArm");
@@ -297,8 +344,10 @@
           item.classList.add("mh-unowned-skin-item", "cannotArm");
           item.classList.remove("canArm");
         }
+
         addArmButton(item);
       });
+
     setupArmHandler(browser);
     updateArmButtons();
   };
@@ -306,56 +355,76 @@
   const createToggle = () => {
     const browser = getBrowser();
     if (!browser) return;
+
     const filter = browser.querySelector(
       ".trapSelectorView__itemBrowser-filterContainer,.campPage-trap-itemBrowser-filterContainer",
     );
     if (!filter) return;
+
     let toggle = filter.querySelector(".mh-skin-mode-toggle");
     const random = filter.querySelector(".random-skin-button");
+
     if (!toggle) {
       toggle = document.createElement("div");
       toggle.className = "mh-skin-mode-toggle";
+
       toggle.innerHTML =
         '<span class="mh-mode-label mh-server-label">Server</span><label class="mh-switch"><input type="checkbox"><span class="mh-slider"></span></label><span class="mh-mode-label mh-client-label">Client</span>';
+
       toggle.querySelector("input").addEventListener("change", (e) => {
         if (animationBusy) {
           e.target.checked = mode === "client";
           return;
         }
+
         switchMode(e.target.checked ? "client" : "server");
       });
     }
+
     const input = toggle.querySelector("input");
+
     if (input) input.checked = mode === "client";
+
     toggle.classList.toggle("mh-mode-server", mode === "server");
     toggle.classList.toggle("mh-mode-client", mode === "client");
+
     if (random) {
       if (random.nextElementSibling !== toggle)
         random.insertAdjacentElement("afterend", toggle);
-    } else if (!filter.contains(toggle)) filter.appendChild(toggle);
+    } else if (!filter.contains(toggle)) {
+      filter.appendChild(toggle);
+    }
   };
 
   const updateToggle = () => {
     const toggle = getBrowser()?.querySelector(".mh-skin-mode-toggle");
     if (!toggle) return;
+
     const input = toggle.querySelector("input");
+
     if (input) input.checked = mode === "client";
+
     toggle.classList.toggle("mh-mode-server", mode === "server");
     toggle.classList.toggle("mh-mode-client", mode === "client");
   };
 
   const switchMode = (newMode) => {
     if (!currentWeaponId || newMode === mode || animationBusy) return;
+
     if (mode === "server") {
       const actual = getServerSkin();
       if (actual) saveServer(actual);
     }
+
     mode = newMode;
     saveWeaponData({ mode });
+
     updateToggle();
     updateItems();
+
     if (newMode === "server") {
       const actual = getServerSkin() || getWeaponData().serverSkin;
+
       if (actual) armServer(actual);
       else updateArmButtons();
     } else {
@@ -366,37 +435,75 @@
 
   const updateWeapon = () => {
     const weaponId = getWeaponId();
+
     if (!weaponId) return;
+
     const id = String(weaponId);
+
     if (id === String(currentWeaponId)) return;
+
     currentWeaponId = id;
-    mode = getWeaponData().mode || "server";
+
+    const data = getWeaponData();
+
+    mode = data.mode || "server";
+
+    if (mode === "client" && data.clientTrapImage && data.clientThumbnail) {
+      setTimeout(protectImage, 100);
+      setTimeout(protectImage, 500);
+      setTimeout(protectImage, 1000);
+    }
   };
 
   const protectImage = () => {
     if (mode !== "client" || !currentWeaponId || animationBusy) return;
+
     const data = getWeaponData();
-    if (data.clientTrapImage && data.clientThumbnail)
+
+    if (data.clientTrapImage && data.clientThumbnail) {
       applyClientImages(data.clientTrapImage, data.clientThumbnail);
+    }
+
     updateArmButtons();
+  };
+
+  const restoreClientAfterPageLoad = () => {
+    if (mode !== "client") return;
+
+    [50, 150, 300, 600, 1000].forEach((delay) => {
+      setTimeout(() => {
+        if (mode === "client" && !animationBusy) {
+          protectImage();
+        }
+      }, delay);
+    });
   };
 
   const process = () => {
     processTimer = null;
+
     updateWeapon();
     invalidateBrowser();
+
     document
       .querySelectorAll(
         ".campPage-trap-itemBrowser:not(.skin) .mh-skin-mode-toggle",
       )
       .forEach((toggle) => toggle.remove());
+
     const browser = getBrowser();
+
     if (!browser) return;
+
     createToggle();
     updateItems();
     updateToggle();
-    if (mode === "server") syncServer();
-    else protectImage();
+
+    if (mode === "server") {
+      syncServer();
+    } else {
+      protectImage();
+    }
   };
 
   const scheduleProcess = () => {
@@ -406,6 +513,7 @@
 
   const scheduleImageProtection = () => {
     if (mode !== "client" || animationBusy || imageTimer) return;
+
     imageTimer = setTimeout(() => {
       imageTimer = null;
       protectImage();
@@ -414,13 +522,18 @@
 
   const scheduleServerSync = () => {
     if (serverTimer) return;
+
     serverTimer = setTimeout(() => {
       serverTimer = null;
-      if (mode === "server" && !animationBusy) syncServer();
+
+      if (mode === "server" && !animationBusy) {
+        syncServer();
+      }
     }, 100);
   };
 
   const style = document.createElement("style");
+
   style.textContent = `
         .campPage-trap-itemBrowser.skin .campPage-trap-itemBrowser-filterContainer{overflow:hidden!important;height:auto!important}
         .campPage-trap-itemBrowser.skin .campPage-trap-itemBrowser-items{margin-top:45px!important}
@@ -441,37 +554,84 @@
         .mh-client-arm-armed:hover{background:#5ffcff!important;border-color:#000!important;box-shadow:inset 0 0 5px 2px #5accdb!important}
         .mh-client-arm-busy{pointer-events:none!important;cursor:wait!important;opacity:.65!important}
         .mh-client-arm::after{content:none!important;display:none!important}
+        .trapSelectorView__armedItem--empty[data-item-classification='skin'] .trapSelectorView__armedItemImage::after {content: none !important;}
     `;
+
   document.head.appendChild(style);
+
+  const originalFetch = window.fetch;
+
+  window.fetch = function (...args) {
+    const url = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
+    const result = originalFetch.apply(this, args);
+
+    if (url.includes("/managers/ajax/pages/page.php")) {
+      result.finally(() => restoreClientAfterPageLoad());
+    }
+
+    return result;
+  };
+
+  const originalOpen = XMLHttpRequest.prototype.open;
+  const originalSend = XMLHttpRequest.prototype.send;
+
+  XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+    this._mhPageRequest =
+      typeof url === "string" && url.includes("/managers/ajax/pages/page.php");
+    return originalOpen.call(this, method, url, ...rest);
+  };
+
+  XMLHttpRequest.prototype.send = function (...args) {
+    if (this._mhPageRequest) {
+      this.addEventListener("load", () => restoreClientAfterPageLoad(), {
+        once: true,
+      });
+    }
+
+    return originalSend.apply(this, args);
+  };
 
   new MutationObserver((mutations) => {
     let processNeeded = false,
       imageNeeded = false,
       serverNeeded = false;
+
     for (const mutation of mutations) {
       const target = mutation.target;
+
       if (mutation.type === "childList") {
         processNeeded = true;
         break;
       }
+
       if (mutation.type === "attributes") {
         if (mutation.attributeName === "style") {
           if (
             target.matches?.(
               ".trapImageView-layer.weapon,.trapSelectorView__armedItemImage,.armedItemImage",
             )
-          )
+          ) {
             imageNeeded = true;
+          }
         } else if (mutation.attributeName === "class") {
           if (target.closest?.(".mh-client-arm,.mh-skin-mode-toggle")) continue;
-          if (target.closest?.(".trapSelectorView__itemBrowserContainer.skin"))
+
+          if (
+            target.closest?.(".trapSelectorView__itemBrowserContainer.skin")
+          ) {
             serverNeeded = true;
+          }
         }
       }
     }
-    if (processNeeded) scheduleProcess();
-    else if (serverNeeded) scheduleServerSync();
-    else if (imageNeeded) scheduleImageProtection();
+
+    if (processNeeded) {
+      scheduleProcess();
+    } else if (serverNeeded) {
+      scheduleServerSync();
+    } else if (imageNeeded) {
+      scheduleImageProtection();
+    }
   }).observe(document.body, {
     childList: true,
     subtree: true,
